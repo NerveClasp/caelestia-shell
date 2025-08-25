@@ -124,6 +124,12 @@ ColumnLayout {
                 }
             }
             DelegateChoice {
+                roleValue: "pomodoro"
+                delegate: WrappedLoader {
+                    sourceComponent: Pomodoro {}
+                }
+            }
+            DelegateChoice {
                 roleValue: "clock"
                 delegate: WrappedLoader {
                     sourceComponent: Clock {}

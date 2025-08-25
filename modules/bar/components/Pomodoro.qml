@@ -14,6 +14,16 @@ Column {
   readonly property string longBreakDuration: "15m"
   readonly property int workPeriodsBeforeLongBreak: 4
 
+  readonly property string workIcon: "work"
+  readonly property string shortBreakIcon: "free_breakfast"
+  readonly property string longBreakIcon: "weekend"
+  readonly property string pausedIcon: "pause_circle"
+  readonly property string finishedIcon: "timer"
+
+  readonly property string workKind: "work"
+  readonly property string shortBreakKind: "shortBreak"
+  readonly property string longBreakKind: "longBreak"
+
   readonly property string app: "pomodoro-cli"
 
   property color colour: Colours.palette.m3tertiary
@@ -22,14 +32,11 @@ Column {
   property string timer: "00:00"
   property string state: "finished" // "running", "paused", "finished"
   property string tooltip: "finished"
-  property string icon: "timer" // "work", "free_breakfast", "pause_circle", "timer"
+  property string icon: root.finishedIcon // "work", "free_breakfast", "pause_circle", "timer"
+  property string kind: "" // "work", "shortBreak", "longBreak"
+  property int kindNth: 0 // how many periods of this kind have passed
 
-  property bool isWorkPeriod: true
-  readonly property string workIcon: "work"
-  readonly property string breakIcon: "free_breakfast"
-  readonly property string pausedIcon: "pause_circle"
-  readonly property string finishedIcon: "timer"
-
+  property bool isWorkPeriod: false
   property int workPeriods: 0
 
   MaterialIcon {
@@ -38,6 +45,7 @@ Column {
     anchors.horizontalCenter: parent.horizontalCenter
   }
 
+  // @TODO: can we animate text somehow? Maybe use three text elements and transition their positions?
   StyledText {
     id: pomodoroStatus
     text: "🍅"
@@ -55,10 +63,31 @@ Column {
       stdout: StdioCollector {
         onStreamFinished: {
           var values = text.replace("{", "").replace("}", "").split("\",\"").map(s => s.split("\":\"")[1])
-          root.timer = values[0].replace(":", "\n")
+          var timeAndMessage = values[0].split(" - ")
+          var kindAndNth = timeAndMessage[1]
+
+          // if custom message is set, text will be `"text":"00:00 - Time is up!"` when finished
+          if (!!kindAndNth && kindAndNth.indexOf('#') > -1) {
+            var kindParts = kindAndNth.split(" #")
+            root.kind = kindParts[0]
+            root.kindNth = parseInt(kindParts[1]) || 0
+          }
+
+          if (root.kind === root.workKind || root.kind === root.shortBreakKind) {
+            root.isWorkPeriod = root.kind === root.workKind
+            root.workPeriods = root.kindNth
+          }
+
+          root.timer = timeAndMessage[0].replace(":", "\n")
           root.tooltip = values[1]
           root.state = values[2]
           pomodoroStatus.text = root.timer
+
+          if (root.state !== 'paused') {
+            root.icon = root[`${root.kind}Icon`] || root.finishedIcon
+          } else {
+            root.icon = root.pausedIcon
+          }
         }
       }
     }
@@ -88,12 +117,10 @@ Column {
 
         if (root.state === "running" && isRightClick) {
           root.clickArgs = [root.app, "stop"]
-          root.icon = root.finishedIcon
         }
 
         if (root.state === "running" && isMiddleClick) {
           root.clickArgs = [root.app, "start", "--add", "5m"] // Just 5 more minutes, mom!!!
-          root.icon = root.finishedIcon
         }
 
         if (root.state === "running" && isLeftClick) {
@@ -103,19 +130,23 @@ Column {
 
         if (root.state === "paused") {
           root.clickArgs = [root.app, "start", "--resume"]
-          root.icon = root.isWorkPeriod ? root.workIcon : root.breakIcon
+
+          if (root.kind !== "longBreak") { // happens when we pause and restart the bar. In such case custom message is ` - Paused` %_%
+            root.icon = root[`${root.kind}Icon`]
+          }
         }
 
         if (root.state === "finished" && isRightClick) {
-          root.clickArgs = [root.app, "start", "-d", root.shortBreakDuration]
-          root.icon = root.breakIcon
+          root.clickArgs = [root.app, "start", "-d", root.shortBreakDuration, "-m", `shortBreak #${root.workPeriods}`]
+          root.icon = root.shortBreakIcon
           root.isWorkPeriod = false
         }
 
         if (root.state === "finished" && isMiddleClick) {
-          root.clickArgs = [root.app, "start", "-d", root.longBreakDuration]
-          root.icon = root.breakIcon
+          root.clickArgs = [root.app, "start", "-d", root.longBreakDuration, "-m", `longBreak #0`] // @TODO: extract to a function
+          root.icon = root.longBreakIcon
           root.isWorkPeriod = false
+          root.workPeriods = 0 // force reset work periods on manual long break
         }
 
         if (root.state === "finished" && !isRightClick && !isMiddleClick) {
@@ -123,16 +154,16 @@ Column {
             root.workPeriods += 1
 
             if(root.workPeriods >= root.workPeriodsBeforeLongBreak) {
-              root.clickArgs = [root.app, "start", "-d", root.longBreakDuration]
+              root.clickArgs = [root.app, "start", "-d", root.longBreakDuration, "-m", `longBreak #0`] // @TODO: do we want to track long breaks taken? Do we want to track all kinds separately?
               root.workPeriods = 0
             }else{
-              root.clickArgs = [root.app, "start", "-d", root.shortBreakDuration]
+              root.clickArgs = [root.app, "start", "-d", root.shortBreakDuration, "-m", `shortBreak #${root.workPeriods}`]
             }
 
-            root.icon = root.breakIcon
+            root.icon = root.shortBreakIcon
             root.isWorkPeriod = false
           } else {
-            root.clickArgs = [root.app, "start", "-d", root.workDuration]
+            root.clickArgs = [root.app, "start", "-d", root.workDuration, "-m", `work #${root.workPeriods}`]
             root.icon = root.workIcon
             root.isWorkPeriod = true
           } 

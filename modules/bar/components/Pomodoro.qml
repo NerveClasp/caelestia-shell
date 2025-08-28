@@ -12,9 +12,9 @@ StyledRect {
   implicitWidth: Config.bar.sizes.innerWidth
   implicitHeight: layout.implicitHeight + (Config.bar.tray.background ? Appearance.padding.normal : Appearance.padding.small) * 2
 
-  readonly property string workDuration: "25s"
-  readonly property string shortBreakDuration: "5s"
-  readonly property string longBreakDuration: "15s"
+  readonly property string workDuration: "25m"
+  readonly property string shortBreakDuration: "5m"
+  readonly property string longBreakDuration: "15m"
   readonly property int workPeriodsBeforeLongBreak: 4
 
   readonly property string workIcon: "work"
